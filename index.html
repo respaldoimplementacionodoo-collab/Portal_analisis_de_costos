@@ -52,11 +52,11 @@
         <nav class="flex-1">
             <div id="nav-dash" class="nav-item active" onclick="switchSection('dashboard')">📊 Dashboard</div>
             <div id="nav-compare" class="nav-item" onclick="switchSection('comparativo')">📈 Comparativo Anual</div>
-            <div id="nav-dev" class="nav-item" onclick="switchSection('desviaciones')">📈 Desviaciones</div>
+            <div id="nav-dev" class="nav-item" onclick="switchSection('desviaciones')"> Desviaciones</div>
             <div id="nav-bank" class="nav-item" onclick="switchSection('bancos')">💳 Bancos</div>
             <div id="nav-detail" class="nav-item" onclick="switchSection('detalle')">🔍 Detalle Gastos</div>
             <div class="border-t border-gray-200 mt-4 pt-4">
-                <div id="nav-excel" class="nav-item text-green-700 font-bold" onclick="downloadCustomExcel()">📗 Origen xlsx</div>
+                <div id="nav-excel" class="nav-item text-green-700 font-bold" onclick="downloadCustomExcel()"> Origen xlsx</div>
                 <div id="nav-gsheet" class="nav-item text-blue-600 font-bold" onclick="openGoogleSheet()">📊 Google sheet</div>
             </div>
         </nav>
@@ -93,9 +93,9 @@
             
             <div class="grid grid-cols-12 gap-6 mb-8">
                 <div class="col-span-8 grid grid-cols-3 gap-6">
-                    <div class="card-kpi"><p class="kpi-title">🔵 PLANIFICADO</p><h3 class="text-2xl font-black" id="kpi-plan">$0</h3></div>
-                    <div class="card-kpi"><p class="kpi-title"> EJECUTADO REAL</p><h3 class="text-2xl font-black text-orange-600" id="kpi-real">$0</h3></div>
-                    <div class="card-kpi"><p class="kpi-title">🟢 % AHORRO</p><h3 class="text-2xl font-black" id="kpi-perc">0%</h3></div>
+                    <div class="card-kpi"><p class="kpi-title"> PLANIFICADO</p><h3 class="text-2xl font-black" id="kpi-plan">$0</h3></div>
+                    <div class="card-kpi"><p class="kpi-title">🟠 EJECUTADO REAL</p><h3 class="text-2xl font-black text-orange-600" id="kpi-real">$0</h3></div>
+                    <div class="card-kpi"><p class="kpi-title"> % AHORRO</p><h3 class="text-2xl font-black" id="kpi-perc">0%</h3></div>
                     <div class="card-kpi"><p class="kpi-title">🟣 PPTO DISPONIBLE</p><h3 class="text-2xl font-black text-purple-600" id="kpi-dispo">$0</h3></div>
                     <div class="card-kpi"><p class="kpi-title">📊 PROYECCIÓN ANUAL</p><h3 class="text-2xl font-black text-blue-600" id="kpi-projection">$0</h3></div>
                     <div class="card-kpi"><p class="kpi-title">🔴 DESVIACIONES</p><h3 class="text-2xl font-black text-red-600" id="kpi-dev">$0</h3></div>
@@ -141,7 +141,7 @@
                         <span class="text-sm font-bold text-gray-600">Hasta:</span>
                         <input type="date" id="dev-date-to" class="date-filter" onchange="renderDesviaciones()">
                     </div>
-                    <input type="text" id="dev-search-input" placeholder=" Buscar proveedor o concepto..." onkeyup="renderDesviaciones()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 min-w-[350px] flex-1 md:flex-none">
+                    <input type="text" id="dev-search-input" placeholder="🔍 Buscar proveedor o concepto..." onkeyup="renderDesviaciones()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 min-w-[350px] flex-1 md:flex-none">
                 </div>
             </div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -180,7 +180,7 @@
         <section id="detalle-section" style="display: none;">
             <h1 class="text-3xl font-black mb-8 text-gray-900">Detalle de Gastos</h1>
             <div class="mb-6 flex gap-4 flex-wrap">
-                <input type="text" id="search-input" placeholder=" Buscar proveedor o concepto..." onkeyup="filterDetail()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 flex-1 min-w-[200px]">
+                <input type="text" id="search-input" placeholder="🔍 Buscar proveedor o concepto..." onkeyup="filterDetail()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 flex-1 min-w-[200px]">
                 <select id="filter-bank" onchange="filterDetail()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 font-bold text-sm">
                     <option value="">Todos los bancos</option>
                 </select>
@@ -307,12 +307,23 @@
                     currentUser = user;
                     document.getElementById('user-display-name').innerText = user.name;
                     
-                    const fotoFile = user.foto || 'foto1.jpg';
+                    // ✅ CORRECCIÓN: Agregar extensión .jpg automáticamente si no la tiene
+                    let fotoFile = user.foto || 'foto1';
+                    
+                    // Verificar si ya tiene extensión de imagen
+                    const tieneExtension = fotoFile.toLowerCase().match(/\.(jpg|jpeg|png|gif|webp)$/);
+                    
+                    // Si no tiene extensión, agregar .jpg
+                    if (!tieneExtension) {
+                        fotoFile = fotoFile + '.jpg';
+                    }
+                    
                     const photoElement = document.getElementById('user-photo');
                     photoElement.src = fotoFile;
                     
                     photoElement.onerror = function() {
-                        this.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ccircle fill=%22%23e5e7eb%22 cx=%2250%22 cy=%2250%22 r=%2250%22/%3E%3Ctext fill=%22%239ca3af%22 font-size=%2250%22 x=%2250%22 y=%2265%22 text-anchor=%22middle%22%3E👤%3C/text%3E%3C/svg%3E';
+                        console.log('Error cargando foto:', fotoFile);
+                        this.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ccircle fill=%22%23e5e7eb%22 cx=%2250%22 cy=%2250%22 r=%2250%22/%3E%3Ctext fill=%22%239ca3af%22 font-size=%2250%22 x=%2250%22 y=%2265%22 text-anchor=%22middle%22%3E%3C/text%3E%3C/svg%3E';
                     };
                     
                     document.getElementById('login-screen').style.display = 'none';
