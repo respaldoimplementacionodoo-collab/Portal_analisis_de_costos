@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IT Portal | Alimentos La Giralda</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root { --apple-blue: #0071e3; --apple-gray: #86868b; }
+        body { background: #f5f5f7; font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; overflow-x: hidden; }
+        .apple-glass { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(30px); border-right: 1px solid rgba(0,0,0,0.05); }
+        .card-kpi { background: white; border-radius: 20px; padding: 1.5rem; border: 1px solid rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; min-height: 120px; box-shadow: 0 2px 4px rgba(0,0,0,0.01); transition: 0.3s; }
+        .card-kpi:hover { transform: translateY(-3px); box-shadow: 0 12px 24px rgba(0,0,0,0.05); }
+        .sidebar { width: 260px; height: 100vh; position: fixed; left: 0; top: 0; display: flex; flex-direction: column; padding: 2rem; z-index: 100; }
+        .main-content { margin-left: 260px; padding: 2.5rem; min-height: 100vh; }
+        .nav-item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; border-radius: 16px; cursor: pointer; color: var(--apple-gray); transition: 0.3s; font-weight: 500; margin-bottom: 8px; white-space: nowrap; }
+        .nav-item.active { background: white; color: var(--apple-blue); box-shadow: 0 10px 20px rgba(0,0,0,0.04); font-weight: 700; }
+        .kpi-title { font-size: 13px; font-weight: 800; color: #9ca3af; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.3px; }
+        .table-dev td { padding: 16px; font-size: 14px; border-bottom: 1px solid #f1f1f1; }
+        .spinner { width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: #fff; animation: spin 0.8s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .badge-normal { background: #dbeafe; color: #1e40af; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; }
+        .badge-deviacion { background: #fee2e2; color: #991b1b; padding: 6px 12px; border-radius: 12px; font-size: 12px; font-weight: 700; }
+        .date-filter { padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; outline: none; }
+        .date-filter:focus { border-color: #0071e3; ring: 2px solid rgba(0,113,227,0.2); }
+        .title-card { background: white; padding: 1rem 2rem; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); display: inline-block; }
+        @media (max-width: 768px) { .sidebar { width: 100%; height: auto; position: relative; } .main-content { margin-left: 0; padding: 1rem; } }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen" class="fixed inset-0 z-[200] flex items-center justify-center bg-[#f5f5f7]">
+        <div class="bg-white/90 backdrop-blur-xl p-10 w-full max-w-sm rounded-[40px] text-center shadow-2xl">
+            <img src="logo.png" onerror="this.style.display='none'" class="h-24 mx-auto mb-4 object-contain" alt="Logo">
+            <h2 class="text-xl font-bold text-gray-600 mb-8 tracking-tight">Análisis de costos IT</h2>
+            <div class="space-y-4">
+                <input type="text" id="user-input" class="w-full p-4 rounded-2xl bg-gray-100 outline-none text-center" placeholder="Usuario">
+                <input type="password" id="pass-input" onkeydown="if(event.key==='Enter') handleLogin()" class="w-full p-4 rounded-2xl bg-gray-100 outline-none text-center" placeholder="Contraseña">
+                <button id="login-btn" onclick="handleLogin()" class="w-full bg-[#0071e3] text-white py-4 rounded-2xl font-bold active:scale-95 transition flex justify-center items-center gap-3">
+                    <span id="btn-content">Entrar</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <aside class="sidebar apple-glass" id="sidebar-ui" style="display: none;">
+        <img src="logo.png" onerror="this.style.display='none'" class="h-24 mx-auto mb-6 object-contain" alt="Logo">
+        <h2 class="text-xl font-bold text-center mb-8 text-gray-800">IT Portal</h2>
+        <nav class="flex-1">
+            <div id="nav-dash" class="nav-item active" onclick="switchSection('dashboard')">📊 Dashboard</div>
+            <div id="nav-compare" class="nav-item" onclick="switchSection('comparativo')">📈 Comparativo Anual</div>
+            <div id="nav-dev" class="nav-item" onclick="switchSection('desviaciones')">📈 Desviaciones</div>
+            <div id="nav-bank" class="nav-item" onclick="switchSection('bancos')">💳 Bancos</div>
+            <div id="nav-detail" class="nav-item" onclick="switchSection('detalle')">🔍 Detalle Gastos</div>
+            <div class="border-t border-gray-200 mt-4 pt-4">
+                <div id="nav-excel" class="nav-item text-green-700 font-bold" onclick="downloadCustomExcel()">📗 Origen xlsx</div>
+                <div id="nav-gsheet" class="nav-item text-blue-600 font-bold" onclick="openGoogleSheet()">📊 Google sheet</div>
+            </div>
+        </nav>
+        <div class="pt-6 border-t border-gray-200 flex items-center gap-4">
+            <img id="user-photo" src="" class="w-20 h-20 rounded-full border-2 border-white shadow-xl object-cover bg-gray-100">
+            <div class="overflow-hidden">
+                <p id="user-display-name" class="font-bold text-gray-800 text-sm truncate">Usuario</p>
+                <button onclick="location.reload()" class="text-[10px] text-red-500 font-bold uppercase hover:underline">Cerrar Sesión</button>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content" id="main-ui" style="display: none;">
+        <section id="dashboard-section">
+            <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+                <div class="title-card">
+                    <h1 class="text-2xl font-black text-gray-900 tracking-tight">Análisis de costos</h1>
+                </div>
+                <div class="flex gap-3 flex-wrap items-center">
+                    <select id="year-selector" onchange="updateDashboard()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 font-bold text-sm">
+                        <option value="2025">2025</option>
+                        <option value="2026" selected>2026</option>
+                        <option value="2027">2027</option>
+                    </select>
+                    <div class="flex gap-2 items-center bg-white px-4 py-2 rounded-xl border border-gray-200">
+                        <span class="text-sm font-bold text-gray-600">Desde:</span>
+                        <input type="date" id="date-from" class="date-filter" onchange="updateDashboard()">
+                        <span class="text-sm font-bold text-gray-600">Hasta:</span>
+                        <input type="date" id="date-to" class="date-filter" onchange="updateDashboard()">
+                    </div>
+                    <button onclick="refreshData()" class="px-4 py-2 rounded-xl bg-blue-500 text-white font-bold text-sm hover:bg-blue-600">🔄 Actualizar</button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-12 gap-6 mb-8">
+                <div class="col-span-8 grid grid-cols-3 gap-6">
+                    <div class="card-kpi"><p class="kpi-title">🔵 PLANIFICADO</p><h3 class="text-2xl font-black" id="kpi-plan">$0</h3></div>
+                    <div class="card-kpi"><p class="kpi-title"> EJECUTADO REAL</p><h3 class="text-2xl font-black text-orange-600" id="kpi-real">$0</h3></div>
+                    <div class="card-kpi"><p class="kpi-title">🟢 % AHORRO</p><h3 class="text-2xl font-black" id="kpi-perc">0%</h3></div>
+                    <div class="card-kpi"><p class="kpi-title">🟣 PPTO DISPONIBLE</p><h3 class="text-2xl font-black text-purple-600" id="kpi-dispo">$0</h3></div>
+                    <div class="card-kpi"><p class="kpi-title">📊 PROYECCIÓN ANUAL</p><h3 class="text-2xl font-black text-blue-600" id="kpi-projection">$0</h3></div>
+                    <div class="card-kpi"><p class="kpi-title">🔴 DESVIACIONES</p><h3 class="text-2xl font-black text-red-600" id="kpi-dev">$0</h3></div>
+                </div>
+                <div class="col-span-4">
+                    <div class="card-kpi h-[288px]">
+                        <p class="text-[14px] font-bold text-gray-400 uppercase mb-4">Balance General</p>
+                        <canvas id="compareChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-kpi h-[400px] w-full">
+                <p class="text-[14px] font-bold text-gray-400 uppercase mb-4">Tendencia Mensual</p>
+                <canvas id="mainChart"></canvas>
+            </div>
+        </section>
+
+        <section id="comparativo-section" style="display: none;">
+            <!-- GRÁFICO DE PLANIFICADO -->
+            <div class="card-kpi h-[350px] w-full mb-4">
+                <p class="text-[14px] font-bold text-gray-400 uppercase mb-4">Comparativo Planificado 2025 vs 2026 vs 2027</p>
+                <canvas id="planCompareChart"></canvas>
+            </div>
+            
+            <!-- GRÁFICO DE EJECUTADO -->
+            <div class="card-kpi h-[350px] w-full mb-4">
+                <p class="text-[14px] font-bold text-gray-400 uppercase mb-4">Comparativo Ejecutado 2025 vs 2026 vs 2027</p>
+                <canvas id="execCompareChart"></canvas>
+            </div>
+            
+            <!-- TARJETAS DE RESUMEN -->
+            <div id="year-summary" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+        </section>
+
+        <section id="desviaciones-section" style="display: none;">
+            <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+                <h1 class="text-3xl font-black text-gray-900">Análisis de Desviaciones</h1>
+                <div class="flex gap-2 items-center flex-wrap w-full md:w-auto">
+                    <div class="flex gap-2 items-center bg-white px-4 py-2 rounded-xl border border-gray-200">
+                        <span class="text-sm font-bold text-gray-600">Desde:</span>
+                        <input type="date" id="dev-date-from" class="date-filter" onchange="renderDesviaciones()">
+                        <span class="text-sm font-bold text-gray-600">Hasta:</span>
+                        <input type="date" id="dev-date-to" class="date-filter" onchange="renderDesviaciones()">
+                    </div>
+                    <input type="text" id="dev-search-input" placeholder=" Buscar proveedor o concepto..." onkeyup="renderDesviaciones()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 min-w-[350px] flex-1 md:flex-none">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <div class="card-kpi"><p class="kpi-title">TOTAL DESVIACIONES</p><h3 class="text-2xl font-black text-red-600" id="dev-total">$0</h3></div>
+                <div class="card-kpi"><p class="kpi-title">% SOBRE PRESUPUESTO</p><h3 class="text-2xl font-black text-orange-600" id="dev-perc">0%</h3></div>
+                <div class="card-kpi"><p class="kpi-title">CANTIDAD REGISTROS</p><h3 class="text-2xl font-black text-gray-900" id="dev-count">0</h3></div>
+            </div>
+            <div class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 overflow-x-auto">
+                <table class="w-full text-left border-collapse table-dev">
+                    <thead><tr><th class="p-4 uppercase text-xs text-gray-800 font-bold">Mes</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Proveedor</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Concepto</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Plan</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Real</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Desviación</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">%</th></tr></thead>
+                    <tbody id="dev-detail-body"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="bancos-section" style="display: none;">
+            <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
+                <h1 class="text-3xl font-black text-gray-900">Gastos por Institución</h1>
+                <div class="flex gap-2 items-center bg-white px-4 py-2 rounded-xl border border-gray-200">
+                    <span class="text-sm font-bold text-gray-600">Desde:</span>
+                    <input type="date" id="bank-date-from" class="date-filter" onchange="renderBancos()">
+                    <span class="text-sm font-bold text-gray-600">Hasta:</span>
+                    <input type="date" id="bank-date-to" class="date-filter" onchange="renderBancos()">
+                </div>
+            </div>
+            <div class="card-kpi h-[400px] w-full mb-6">
+                <canvas id="bankChart"></canvas>
+            </div>
+            
+            <!-- TARJETAS DE PORCENTAJE POR BANCO -->
+            <div id="bank-percent-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+                <!-- Las tarjetas se generan dinámicamente -->
+            </div>
+        </section>
+
+        <section id="detalle-section" style="display: none;">
+            <h1 class="text-3xl font-black mb-8 text-gray-900">Detalle de Gastos</h1>
+            <div class="mb-6 flex gap-4 flex-wrap">
+                <input type="text" id="search-input" placeholder=" Buscar proveedor o concepto..." onkeyup="filterDetail()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 flex-1 min-w-[200px]">
+                <select id="filter-bank" onchange="filterDetail()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 font-bold text-sm">
+                    <option value="">Todos los bancos</option>
+                </select>
+                <select id="filter-provider" onchange="filterDetail()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 font-bold text-sm">
+                    <option value="">Todos los proveedores</option>
+                </select>
+                <select id="filter-type" onchange="filterDetail()" class="px-4 py-2 rounded-xl bg-white border border-gray-200 font-bold text-sm">
+                    <option value="">Todos los tipos</option>
+                    <option value="Normal">Normal</option>
+                    <option value="Desviación">Desviación</option>
+                </select>
+            </div>
+            <div class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 overflow-x-auto">
+                <table class="w-full text-left border-collapse table-dev">
+                    <thead><tr><th class="p-4 uppercase text-xs text-gray-800 font-bold">Fecha</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Proveedor</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Concepto</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Monto USD</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Banco</th><th class="p-4 uppercase text-xs text-gray-800 font-bold">Tipo</th></tr></thead>
+                    <tbody id="detail-body"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw66bz_4oLyS0hfIJigWn8EbCaFdes6r1Rv0pBj3dx8eWiLNKpqrjOoSwZFZToNpOoRvA/exec";
+        const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1Ku7o4EspxnV4QW4mcP6SmAG6ayHUtPMzZ-VeiA_dwg0/edit";
+
+        let fullData = null;
+        let currentYear = '2026';
+        let currentUser = null;
+        let charts = {};
+
+        const cleanNum = (v) => {
+            if (v === null || v === undefined || v === '') return 0;
+            if (typeof v === 'number') return v;
+            let n = parseFloat(v.toString().replace(/[^\d.,-]/g, '').replace(',', '.'));
+            return isNaN(n) ? 0 : n;
+        };
+
+        const formatDollar = (num) => {
+            const val = Math.abs(cleanNum(num));
+            return '$' + val.toLocaleString('de-DE', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        };
+
+        const getYearFromDate = (fecha) => {
+            if (!fecha) return null;
+            try {
+                const d = new Date(fecha);
+                return d.getFullYear();
+            } catch(e) { return null; }
+        };
+
+        function downloadCustomExcel() {
+            if (!fullData) {
+                alert('No hay datos cargados. Inicie sesión primero.');
+                return;
+            }
+
+            try {
+                const wb = XLSX.utils.book_new();
+
+                const registrosData = fullData.consumos.map(c => ({
+                    ID: c.ID,
+                    Fecha: c.Fecha,
+                    Mes: c.Mes,
+                    Proveedor: c.Proveedor,
+                    Concepto: c.Concepto,
+                    Monto_Bs: c.Monto_Bs,
+                    Tasa_BCV: c.Tasa_BCV,
+                    Monto_USD: c.Monto_USD,
+                    Monto_Planificado: c.Monto_Planificado,
+                    Banco: c.Banco,
+                    Estatus: c.Estatus,
+                    Tipo: c.Tipo
+                }));
+                const wsRegistros = XLSX.utils.json_to_sheet(registrosData);
+                XLSX.utils.book_append_sheet(wb, wsRegistros, 'Registros');
+
+                ['2025', '2026', '2027'].forEach(year => {
+                    const planData = fullData.planificacion[year] || {};
+                    const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                    const planSheet = meses.map(mes => ({
+                        Mes: mes,
+                        Planificado: planData[mes] || 0,
+                        Ejecutado: planData[mes + '_Ejecutado'] || 0
+                    }));
+                    const wsPlan = XLSX.utils.json_to_sheet(planSheet);
+                    XLSX.utils.book_append_sheet(wb, wsPlan, `Planificacion_${year}`);
+                });
+
+                XLSX.writeFile(wb, `Data_Dashboard_IT_${currentYear}.xlsx`);
+            } catch (e) {
+                alert('Error al generar el Excel: ' + e.message);
+            }
+        }
+
+        function openGoogleSheet() {
+            window.open(GOOGLE_SHEET_URL, '_blank');
+        }
+
+        async function handleLogin() {
+            const u = document.getElementById('user-input').value.trim();
+            const p = document.getElementById('pass-input').value.trim();
+            const btnContent = document.getElementById('btn-content');
+            if(!u || !p) return alert('Ingrese usuario y contraseña');
+            
+            btnContent.innerHTML = '<div class="spinner"></div>';
+            
+            try {
+                const res = await fetch(SCRIPT_URL);
+                const data = await res.json();
+                console.log('Datos recibidos:', data);
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    btnContent.innerText = 'Entrar';
+                    return;
+                }
+                
+                fullData = data;
+                console.log('Total consumos:', fullData.consumos.length);
+                console.log('Planificación 2026:', fullData.planificacion['2026']);
+                
+                const user = fullData.usuarios[u];
+                if (user && String(user.pass) === p) {
+                    currentUser = user;
+                    document.getElementById('user-display-name').innerText = user.name;
+                    
+                    const fotoFile = user.foto || 'foto1.jpg';
+                    const photoElement = document.getElementById('user-photo');
+                    photoElement.src = fotoFile;
+                    
+                    photoElement.onerror = function() {
+                        this.src = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ccircle fill=%22%23e5e7eb%22 cx=%2250%22 cy=%2250%22 r=%2250%22/%3E%3Ctext fill=%22%239ca3af%22 font-size=%2250%22 x=%2250%22 y=%2265%22 text-anchor=%22middle%22%3E👤%3C/text%3E%3C/svg%3E';
+                    };
+                    
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('sidebar-ui').style.display = 'flex';
+                    document.getElementById('main-ui').style.display = 'block';
+                    updateDashboard();
+                } else {
+                    alert("Credenciales incorrectas");
+                    btnContent.innerText = 'Entrar';
+                }
+            } catch (e) {
+                alert("Error de conexión: " + e.message);
+                btnContent.innerText = 'Entrar';
+            }
+        }
+
+        async function refreshData() {
+            try {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<div class="spinner"></div>';
+                const res = await fetch(SCRIPT_URL);
+                fullData = await res.json();
+                updateDashboard();
+                setTimeout(() => btn.innerHTML = originalText, 1000);
+            } catch (e) {
+                alert("Error al actualizar: " + e.message);
+            }
+        }
+
+        function switchSection(sec) {
+            const sections = ['dashboard', 'comparativo', 'desviaciones', 'bancos', 'detalle'];
+            sections.forEach(s => {
+                const el = document.getElementById(s + '-section');
+                if (el) el.style.display = 'none';
+            });
+            
+            const navIdMap = {
+                'dashboard': 'nav-dash',
+                'comparativo': 'nav-compare',
+                'desviaciones': 'nav-dev',
+                'bancos': 'nav-bank',
+                'detalle': 'nav-detail'
+            };
+            
+            Object.values(navIdMap).forEach(id => {
+                const el = document.getElementById(id);
+                if(el) el.classList.remove('active');
+            });
+            
+            const selectedSection = document.getElementById(sec + '-section');
+            if (selectedSection) selectedSection.style.display = 'block';
+            
+            const selectedNav = document.getElementById(navIdMap[sec]);
+            if (selectedNav) selectedNav.classList.add('active');
+            
+            setTimeout(() => {
+                if(sec === 'comparativo') renderComparativo();
+                else if(sec === 'desviaciones') renderDesviaciones();
+                else if(sec === 'bancos') renderBancos();
+                else if(sec === 'detalle') renderDetalle();
+            }, 100);
+        }
+
+        function updateDashboard() {
+            currentYear = document.getElementById('year-selector').value;
+            renderDashboard();
+        }
+
+        function getDateRangeFilter() {
+            const dateFrom = document.getElementById('date-from').value;
+            const dateTo = document.getElementById('date-to').value;
+            return { from: dateFrom, to: dateTo };
+        }
+
+        function getBankDateRangeFilter() {
+            const dateFrom = document.getElementById('bank-date-from').value;
+            const dateTo = document.getElementById('bank-date-to').value;
+            return { from: dateFrom, to: dateTo };
+        }
+
+        function filterByDateRange(consumos, dateRange) {
+            if (!dateRange.from && !dateRange.to) return consumos;
+            
+            return consumos.filter(c => {
+                const fecha = c.Fecha ? new Date(c.Fecha) : null;
+                if (!fecha) return false;
+                
+                const fromMatch = !dateRange.from || fecha >= new Date(dateRange.from);
+                const toMatch = !dateRange.to || fecha <= new Date(dateRange.to + 'T23:59:59');
+                
+                return fromMatch && toMatch;
+            });
+        }
+
+        function renderDashboard() {
+            if (!fullData || !fullData.planificacion) return;
+            
+            const planData = fullData.planificacion[currentYear] || {};
+            let consumos = fullData.consumos || [];
+            
+            const dateRange = getDateRangeFilter();
+            consumos = filterByDateRange(consumos, dateRange);
+            
+            const consumosDelAnio = consumos.filter(c => {
+                const year = getYearFromDate(c.Fecha);
+                return year === parseInt(currentYear);
+            });
+            
+            const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            let planAcumulado = 0;
+            let realTotal = 0;
+            let planAnual = 0;
+            
+            meses.forEach(mes => {
+                const plan = cleanNum(planData[mes]);
+                const ejecutado = cleanNum(planData[mes + '_Ejecutado']);
+                planAcumulado += plan;
+                realTotal += ejecutado;
+                planAnual += plan;
+            });
+            
+            if (realTotal === 0 && currentYear === '2026') {
+                realTotal = consumosDelAnio.reduce((acc, v) => acc + cleanNum(v.Monto_USD), 0);
+            }
+            
+            const desviaciones = consumosDelAnio.filter(r => r.Tipo === 'Desviación');
+            const totalDesviaciones = desviaciones.reduce((acc, v) => {
+                const real = cleanNum(v.Monto_USD);
+                const plan = cleanNum(v.Monto_Planificado);
+                const desv = real - plan;
+                return acc + desv;
+            }, 0);
+            
+            const mesesTranscurridos = Math.max(1, consumosDelAnio.length > 0 ? 
+                new Set(consumosDelAnio.map(c => c.Mes)).size : 
+                new Date().getMonth() + 1);
+            const proyeccionAnual = (realTotal / mesesTranscurridos) * 12;
+            
+            const diffAcumulada = planAcumulado - realTotal;
+            const tasaDesviacion = planAcumulado > 0 ? ((planAcumulado - realTotal) / planAcumulado) * 100 : 0;
+
+            document.getElementById('kpi-plan').innerText = formatDollar(planAcumulado);
+            document.getElementById('kpi-real').innerText = formatDollar(realTotal);
+            document.getElementById('kpi-perc').innerHTML = `<span class="${tasaDesviacion >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">${tasaDesviacion.toFixed(1)}%</span>`;
+            document.getElementById('kpi-dispo').innerText = formatDollar(Math.max(0, planAnual - realTotal));
+            document.getElementById('kpi-projection').innerText = formatDollar(proyeccionAnual);
+            document.getElementById('kpi-dev').innerText = formatDollar(totalDesviaciones);
+
+            const labelsGrafico = meses.filter(m => planData[m] || (currentYear === '2026' || currentYear === '2025'));
+            const planDataArray = labelsGrafico.map(m => cleanNum(planData[m]));
+            const realDataArray = labelsGrafico.map(m => {
+                const ejecutado = cleanNum(planData[m + '_Ejecutado']);
+                if (ejecutado > 0) return ejecutado;
+                if (currentYear === '2026') {
+                    return consumosDelAnio.filter(i => i.Mes === m).reduce((s, v) => s + cleanNum(v.Monto_USD), 0);
+                }
+                return 0;
+            });
+
+            if(charts.main) charts.main.destroy();
+            charts.main = new Chart(document.getElementById('mainChart'), {
+                type: 'line',
+                data: {
+                    labels: labelsGrafico,
+                    datasets: [
+                        { label: 'Planificado', data: planDataArray, borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 3, fill: true, tension: 0.4, pointRadius: 4 }, 
+                        { label: 'Ejecutado', data: realDataArray, borderColor: '#0071e3', backgroundColor: 'rgba(0,113,227,0.1)', borderWidth: 3, fill: true, tension: 0.4, pointRadius: 4 }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'top' },
+                        tooltip: {
+                            titleFont: { size: 18, weight: 'bold' },
+                            bodyFont: { size: 16 },
+                            padding: 16,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + context.parsed.y.toLocaleString('de-DE', {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: { y: { ticks: { callback: (v) => '$' + v.toLocaleString('de-DE') } } }
+                }
+            });
+
+            if(charts.compare) charts.compare.destroy();
+            charts.compare = new Chart(document.getElementById('compareChart'), {
+                type: 'bar',
+                data: {
+                    labels: ['Plan', 'Real', 'Diferencia'],
+                    datasets: [{ 
+                        data: [planAcumulado, realTotal, planAcumulado - realTotal], 
+                        backgroundColor: ['#FDE68A', '#93C5FD', '#6EE7B7'], 
+                        borderRadius: 12 
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        legend: { display: false },
+                        tooltip: {
+                            titleFont: { size: 18, weight: 'bold' },
+                            bodyFont: { size: 16 },
+                            padding: 16,
+                            callbacks: {
+                                label: function(context) {
+                                    return '$' + context.parsed.y.toLocaleString('de-DE', {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    } 
+                }
+            });
+        }
+
+        function renderComparativo() {
+            if (!fullData || !fullData.planificacion) return;
+            
+            const years = ['2025', '2026', '2027'];
+            const colors = ['#10b981', '#0071e3', '#f97316'];
+            
+            console.log('=== RENDER COMPARATIVO ===');
+            console.log('Planificación completa:', fullData.planificacion);
+            
+            // GRÁFICO DE PLANIFICADO
+            const planDatasets = [];
+            years.forEach((year, idx) => {
+                const planData = fullData.planificacion[year] || {};
+                const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                
+                const data = meses.map(mes => cleanNum(planData[mes]));
+
+                planDatasets.push({
+                    label: year,
+                    data: data,
+                    borderColor: colors[idx],
+                    backgroundColor: colors[idx] + '25',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: colors[idx]
+                });
+            });
+
+            if(charts.planCompare) charts.planCompare.destroy();
+            charts.planCompare = new Chart(document.getElementById('planCompareChart'), {
+                type: 'line',
+                data: { 
+                    labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'], 
+                    datasets: planDatasets 
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'top' },
+                        tooltip: {
+                            titleFont: { size: 18, weight: 'bold' },
+                            bodyFont: { size: 16 },
+                            padding: 16,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + context.parsed.y.toLocaleString('de-DE', {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: { y: { ticks: { callback: (v) => '$' + v.toLocaleString('de-DE') } } }
+                }
+            });
+            
+            // GRÁFICO DE EJECUTADO
+            const execDatasets = [];
+            years.forEach((year, idx) => {
+                const planData = fullData.planificacion[year] || {};
+                const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                
+                const data = meses.map(mes => {
+                    const ejecutadoKey = mes + '_Ejecutado';
+                    const valor = cleanNum(planData[ejecutadoKey]);
+                    console.log(`${year} - ${mes}: ${valor}`);
+                    return valor;
+                });
+
+                execDatasets.push({
+                    label: year,
+                    data: data,
+                    borderColor: colors[idx],
+                    backgroundColor: colors[idx] + '25',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: colors[idx]
+                });
+            });
+
+            if(charts.execCompare) charts.execCompare.destroy();
+            charts.execCompare = new Chart(document.getElementById('execCompareChart'), {
+                type: 'line',
+                data: { 
+                    labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'], 
+                    datasets: execDatasets 
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'top' },
+                        tooltip: {
+                            titleFont: { size: 18, weight: 'bold' },
+                            bodyFont: { size: 16 },
+                            padding: 16,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': $' + context.parsed.y.toLocaleString('de-DE', {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: { y: { ticks: { callback: (v) => '$' + v.toLocaleString('de-DE') } } }
+                }
+            });
+
+            // TARJETAS DE RESUMEN
+            const summaryHtml = years.map(year => {
+                const planData = fullData.planificacion[year] || {};
+                const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                const planTotal = meses.reduce((acc, m) => acc + cleanNum(planData[m]), 0);
+                let ejecTotal = meses.reduce((acc, m) => acc + cleanNum(planData[m + '_Ejecutado']), 0);
+                
+                if (ejecTotal === 0 && year === '2026') {
+                    ejecTotal = fullData.consumos.filter(c => getYearFromDate(c.Fecha) === 2026).reduce((acc, v) => acc + cleanNum(v.Monto_USD), 0);
+                }
+                
+                const diff = planTotal - ejecTotal;
+                const diffPerc = planTotal > 0 ? ((diff / planTotal) * 100) : 0;
+                
+                return `
+                    <div class="card-kpi">
+                        <p class="kpi-title">${year}</p>
+                        <div class="space-y-2 mt-2">
+                            <div class="flex justify-between text-sm"><span class="text-gray-500">Plan:</span><span class="font-bold">$${planTotal.toLocaleString('de-DE')}</span></div>
+                            <div class="flex justify-between text-sm"><span class="text-gray-500">Ejec:</span><span class="font-bold text-blue-600">$${ejecTotal.toLocaleString('de-DE')}</span></div>
+                            <div class="flex justify-between text-sm border-t pt-2 mt-2">
+                                <span class="text-gray-500">Diff:</span>
+                                <span class="font-bold ${diff >= 0 ? 'text-green-600' : 'text-red-600'}">$${diff.toLocaleString('de-DE')}</span>
+                            </div>
+                            <div class="flex justify-between text-sm">
+                                <span class="text-gray-500">%</span>
+                                <span class="font-bold ${diffPerc >= 0 ? 'text-green-600' : 'text-red-600'}">${diffPerc.toFixed(1)}%</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            document.getElementById('year-summary').innerHTML = summaryHtml;
+        }
+
+        function renderDesviaciones() {
+            if (!fullData || !fullData.consumos) return;
+            
+            let consumos = fullData.consumos || [];
+            
+            const dateFrom = document.getElementById('dev-date-from').value;
+            const dateTo = document.getElementById('dev-date-to').value;
+            const searchTerm = document.getElementById('dev-search-input').value.toLowerCase();
+            
+            if (dateFrom || dateTo) {
+                consumos = filterByDateRange(consumos, { from: dateFrom, to: dateTo });
+            }
+            
+            if (searchTerm) {
+                consumos = consumos.filter(d => 
+                    (d.Proveedor && d.Proveedor.toLowerCase().includes(searchTerm)) || 
+                    (d.Concepto && d.Concepto.toLowerCase().includes(searchTerm))
+                );
+            }
+            
+            const desviaciones = consumos.filter(r => {
+                const year = getYearFromDate(r.Fecha);
+                return r.Tipo === 'Desviación' && year === parseInt(currentYear);
+            });
+            
+            const planData = fullData.planificacion[currentYear] || {};
+            const planAnual = Object.values(planData).reduce((acc, v) => acc + cleanNum(v), 0);
+            
+            const totalDesviaciones = desviaciones.reduce((acc, v) => {
+                const real = cleanNum(v.Monto_USD);
+                const plan = cleanNum(v.Monto_Planificado);
+                const desv = real - plan;
+                return acc + desv;
+            }, 0);
+            
+            document.getElementById('dev-total').innerText = formatDollar(totalDesviaciones);
+            document.getElementById('dev-perc').innerText = (planAnual > 0 ? (totalDesviaciones / planAnual) * 100 : 0).toFixed(1) + '%';
+            document.getElementById('dev-count').innerText = desviaciones.length;
+
+            const tbody = document.getElementById('dev-detail-body');
+            tbody.innerHTML = '';
+            
+            if (desviaciones.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-gray-500">No hay desviaciones registradas para ${currentYear}</td></tr>`;
+                return;
+            }
+            
+            desviaciones.forEach(d => {
+                const real = cleanNum(d.Monto_USD);
+                const plan = cleanNum(d.Monto_Planificado);
+                const desv = real - plan;
+                
+                let perc;
+                if (plan === 0) {
+                    perc = 100;
+                } else {
+                    perc = (desv / plan) * 100;
+                }
+                
+                tbody.innerHTML += `<tr><td class="font-semibold">${d.Mes}</td><td>${d.Proveedor}</td><td>${d.Concepto}</td><td>$${plan.toLocaleString('de-DE')}</td><td>$${real.toLocaleString('de-DE')}</td><td class="text-red-600 font-bold">+${formatDollar(desv)}</td><td><span class="px-2 py-1 rounded-full bg-red-100 text-red-700 text-xs font-bold">${perc.toFixed(1)}%</span></td></tr>`;
+            });
+        }
+
+        function renderBancos() {
+            if (!fullData || !fullData.consumos) return;
+            
+            let consumos = fullData.consumos || [];
+            
+            // Aplicar filtro de fecha si existe
+            const bankDateRange = getBankDateRangeFilter();
+            if (bankDateRange.from || bankDateRange.to) {
+                consumos = filterByDateRange(consumos, bankDateRange);
+            }
+            
+            const bancosData = {};
+            
+            consumos.forEach(i => {
+                const b = i.Banco || 'Otros';
+                bancosData[b] = (bancosData[b] || 0) + cleanNum(i.Monto_USD);
+            });
+            
+            // Calcular total
+            const totalGasto = Object.values(bancosData).reduce((sum, val) => sum + val, 0);
+            
+            const sortedBancos = Object.entries(bancosData)
+                .sort((a, b) => b[1] - a[1])
+                .reduce((obj, [key, value]) => {
+                    obj[key] = value;
+                    return obj;
+                }, {});
+            
+            // Generar tarjetas de porcentaje
+            const percentCardsContainer = document.getElementById('bank-percent-cards');
+            percentCardsContainer.innerHTML = '';
+            
+            Object.entries(sortedBancos).forEach(([banco, monto]) => {
+                const porcentaje = totalGasto > 0 ? (monto / totalGasto) * 100 : 0;
+                
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-bold text-gray-700 truncate" title="${banco}">${banco}</span>
+                        <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-full">${porcentaje.toFixed(1)}%</span>
+                    </div>
+                    <div class="text-lg font-black text-gray-900">${formatDollar(monto)}</div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 mt-2">
+                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-500" style="width: ${porcentaje}%"></div>
+                    </div>
+                `;
+                
+                percentCardsContainer.appendChild(card);
+            });
+            
+            // Gráfico de barras
+            const bankNames = Object.keys(sortedBancos);
+            const bankValues = Object.values(sortedBancos);
+            const maxValue = bankValues[0] || 1;
+            
+            const gradientColors = bankValues.map((value) => {
+                const ratio = value / maxValue;
+                const darkBlue = {r: 30, g: 58, b: 138};
+                const lightBlue = {r: 191, g: 219, b: 254};
+                
+                const r = Math.round(darkBlue.r + (lightBlue.r - darkBlue.r) * (1 - ratio));
+                const g = Math.round(darkBlue.g + (lightBlue.g - darkBlue.g) * (1 - ratio));
+                const b = Math.round(darkBlue.b + (lightBlue.b - darkBlue.b) * (1 - ratio));
+                
+                return `rgb(${r}, ${g}, ${b})`;
+            });
+
+            if(charts.bank) charts.bank.destroy();
+            
+            const container = document.getElementById('bancos-section').querySelector('.card-kpi');
+            container.innerHTML = '';
+            const canvas = document.createElement('canvas');
+            canvas.id = 'bankChart';
+            container.appendChild(canvas);
+            
+            charts.bank = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: bankNames,
+                    datasets: [{ 
+                        label: 'Gasto Real', 
+                        data: bankValues, 
+                        backgroundColor: gradientColors,
+                        borderRadius: 8,
+                        borderSkipped: false
+                    }]
+                },
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    indexAxis: 'y',
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            titleFont: { size: 18, weight: 'bold' },
+                            bodyFont: { size: 16 },
+                            padding: 16,
+                            callbacks: {
+                                label: function(context) {
+                                    return '$' + context.parsed.x.toLocaleString('de-DE', {minimumFractionDigits: 2});
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value.toLocaleString('de-DE');
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderDetalle() {
+            if (!fullData || !fullData.consumos) return;
+            
+            const consumos = fullData.consumos || [];
+            const bankSelect = document.getElementById('filter-bank');
+            const providerSelect = document.getElementById('filter-provider');
+            
+            if(bankSelect.options.length === 1) {
+                const bancos = [...new Set(consumos.map(i => i.Banco).filter(Boolean))].sort();
+                bancos.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b;
+                    opt.textContent = b;
+                    bankSelect.appendChild(opt);
+                });
+            }
+            
+            if(providerSelect.options.length === 1) {
+                const proveedores = [...new Set(consumos.map(i => i.Proveedor).filter(Boolean))].sort();
+                proveedores.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p;
+                    opt.textContent = p;
+                    providerSelect.appendChild(opt);
+                });
+            }
+            
+            filterDetail();
+        }
+
+        function filterDetail() {
+            if (!fullData || !fullData.consumos) return;
+            
+            const consumos = fullData.consumos || [];
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const bank = document.getElementById('filter-bank').value;
+            const provider = document.getElementById('filter-provider').value;
+            const type = document.getElementById('filter-type').value;
+            const tbody = document.getElementById('detail-body');
+            tbody.innerHTML = '';
+
+            const filtered = consumos.filter(d => {
+                const matchSearch = !search || (d.Proveedor && d.Proveedor.toLowerCase().includes(search)) || (d.Concepto && d.Concepto.toLowerCase().includes(search));
+                const matchBank = !bank || d.Banco === bank;
+                const matchProvider = !provider || d.Proveedor === provider;
+                const matchType = !type || d.Tipo === type;
+                return matchSearch && matchBank && matchProvider && matchType;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-500">No se encontraron registros</td></tr>';
+                return;
+            }
+
+            filtered.forEach(d => {
+                const badge = d.Tipo === 'Desviación' ? '<span class="badge-deviacion">Desviación</span>' : '<span class="badge-normal">Normal</span>';
+                const fechaFormateada = d.Fecha ? new Date(d.Fecha).toLocaleDateString('de-DE') : '-';
+                tbody.innerHTML += `<tr><td>${fechaFormateada}</td><td>${d.Proveedor || '-'}</td><td>${d.Concepto || '-'}</td><td class="font-semibold">$${cleanNum(d.Monto_USD).toLocaleString('de-DE')}</td><td>${d.Banco || '-'}</td><td>${badge}</td></tr>`;
+            });
+        }
+    </script>
+</body>
+</html>
